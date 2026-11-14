@@ -17,11 +17,11 @@
       "policy": "sdkVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/EXPO_PROJECT_ID"
+      "url": "https://u.expo.dev/c54907f1-1ef7-48f9-8ddf-e9e2f2aaa71f"
     },
     "extra": {
       "eas": {
-        "projectId": "EXPO_PROJECT_ID"
+        "projectId": "c54907f1-1ef7-48f9-8ddf-e9e2f2aaa71f"
       }
     }
   }
