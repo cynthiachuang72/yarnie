@@ -28,7 +28,8 @@ One-time setup: the repo needs an `EXPO_TOKEN` secret (Settings → Secrets and 
 ## Project structure
 
 ```
-index.ts                   # Entry point\nApp.tsx                    # Tab navigation + providers
+index.ts                   # Entry point
+App.tsx                    # Tab navigation + providers
 src/
   theme.ts                 # Colors, spacing, radius
   types.ts                 # Project, Pattern, Yarn models
