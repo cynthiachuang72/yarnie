@@ -8,10 +8,21 @@
     "backgroundColor": "#FFF7F2",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yarnie.app"
+      "bundleIdentifier": "com.cynthiachuang.yarnie"
     },
     "android": {
-      "package": "com.yarnie.app"
+      "package": "com.cynthiachuang.yarnie"
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/EXPO_PROJECT_ID"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "EXPO_PROJECT_ID"
+      }
     }
   }
 }

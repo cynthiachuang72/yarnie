@@ -13,23 +13,22 @@ A cozy companion app for knitters and crocheters, built with React Native + Expo
 
 All data is stored on the device with AsyncStorage. No account or server is needed.
 
-## Getting started
+## Running it (no laptop needed)
 
-You need [Node.js](https://nodejs.org) 20+ and the **Expo Go** app on your phone.
+Every push to `main` publishes the app to Expo through GitHub Actions.
 
-```bash
-cd yarnie
-npm install
-npx expo install --fix   # align package versions with your installed Expo SDK
-npx expo start
-```
+1. Open the latest run in the repo's **Actions** tab and copy the `exp://` link from its summary, or
+2. on **expo.dev** open **yarnie** → **Updates** → tap the newest one → **Open in Expo Go**.
 
-Scan the QR code with Expo Go (Android) or the Camera app (iOS) to run Yarnie on your phone.
+Pull requests get their own preview link in a PR comment, so you can test changes before merging.
+
+One-time setup: the repo needs an `EXPO_TOKEN` secret (Settings → Secrets and variables → Actions), and
+`app.json` needs the expo.dev project ID in `updates.url` and `extra.eas.projectId`.
 
 ## Project structure
 
 ```
-App.tsx                    # Tab navigation + providers
+index.ts                   # Entry point\nApp.tsx                    # Tab navigation + providers
 src/
   theme.ts                 # Colors, spacing, radius
   types.ts                 # Project, Pattern, Yarn models

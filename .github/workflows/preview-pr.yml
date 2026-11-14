@@ -1,0 +1,67 @@
+# Publishes a test version of every pull request to its own Expo branch (pr-<number>),
+# so you can try it in Expo Go before merging. Main is never touched.
+name: Preview pull request
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths-ignore: ['**.md']
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install packages
+        run: |
+          npm install
+          npx expo install --fix
+
+      - name: Type check
+        run: npx tsc --noEmit
+        continue-on-error: true
+
+      - name: Publish preview
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          PROJECT_ID=$(node -e "console.log(require('./app.json').expo.extra.eas.projectId)")
+          npx expo install expo-updates
+          if ! npx --yes eas-cli@latest update --branch "pr-$PR" --message "PR #$PR ${GITHUB_SHA::7}" --non-interactive --json > update.json 2> update.err; then
+            {
+              echo "Preview failed to publish:"
+              echo '```'
+              tail -30 update.err
+              echo '```'
+            } > body.md
+            gh pr comment "$PR" --body-file body.md
+            exit 1
+          fi
+          GROUP=$(node -e "const j=JSON.parse(require('fs').readFileSync('update.json','utf8'));console.log((Array.isArray(j)?j:[j])[0].group)")
+          {
+            echo "Preview ready. To test before merging:"
+            echo ""
+            echo "1. Open this link in Safari on your iPhone: exp://u.expo.dev/$PROJECT_ID/group/$GROUP"
+            echo "2. Or on expo.dev open yarnie, then Updates, then branch pr-$PR, then Open in Expo Go."
+            echo ""
+            echo "When it looks right, merge this pull request and it goes to the main version."
+          } > body.md
+          gh pr comment "$PR" --body-file body.md
