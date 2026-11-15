@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { FlatList, Linking, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, FlatList, Linking, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { newId, useStore } from '../store';
 import { Difficulty, Pattern } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { Button, Card, EmptyState, Fab, Tag, text } from '../components/ui';
 import { Field, FormModal, FormValues } from '../components/FormModal';
-import { parseSteps } from '../pattern';
+import { guessCraft, parsePatternText } from '../pattern';
 
 const DIFFICULTIES: Difficulty[] = ['beginner', 'easy', 'intermediate', 'advanced'];
 
@@ -29,6 +30,26 @@ export default function PatternsScreen() {
   const { state, add, update, remove } = useStore();
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Pattern | 'new' | null>(null);
+  const [prefill, setPrefill] = useState<FormValues>({});
+
+  const openNew = (values: FormValues = {}) => {
+    setPrefill(values);
+    setEditing('new');
+  };
+
+  /** Read pattern text from the clipboard (e.g. copied from a photo with Live Text) into a new pattern. */
+  const pastePattern = async () => {
+    const clip = (await Clipboard.getStringAsync().catch(() => '')).trim();
+    const { steps, repeats } = parsePatternText(clip);
+    if (!steps.length) {
+      Alert.alert(
+        'Nothing to paste yet',
+        'Copy your pattern first:\n\n1. Open the photo or screenshot in Photos.\n2. Press and hold on the text, then tap Select All → Copy.\n3. Come back and tap Paste pattern.',
+      );
+      return;
+    }
+    openNew({ stepsText: steps.join('\n'), repeats: repeats ?? '', craft: guessCraft(clip) ?? 'crochet' });
+  };
 
   const q = query.trim().toLowerCase();
   const list = q
@@ -38,17 +59,20 @@ export default function PatternsScreen() {
   const initial: FormValues =
     editing && editing !== 'new'
       ? { ...editing, stepsText: (editing.steps ?? []).join('\n'), repeats: editing.repeats ?? '' }
-      : { craft: 'crochet', difficulty: 'easy', link: '', notes: '', stepsText: '', repeats: '' };
+      : { craft: 'crochet', difficulty: 'easy', link: '', notes: '', stepsText: '', repeats: '', ...prefill };
 
   const save = (v: FormValues) => {
+    // Also tidies text pasted straight into the box: numbering and "Repeat N times" lines.
+    const parsed = parsePatternText(String(v.stepsText ?? ''));
+    const typedRepeats = Number(v.repeats) > 0 ? Math.round(Number(v.repeats)) : undefined;
     const data = {
       name: String(v.name).trim(),
       craft: v.craft,
       difficulty: v.difficulty,
       link: String(v.link ?? '').trim(),
       notes: v.notes ?? '',
-      steps: parseSteps(String(v.stepsText ?? '')),
-      repeats: Number(v.repeats) > 0 ? Math.round(Number(v.repeats)) : undefined,
+      steps: parsed.steps,
+      repeats: typedRepeats ?? parsed.repeats,
     };
     if (editing === 'new') add('patterns', { ...data, id: newId(), createdAt: Date.now() });
     else if (editing) update('patterns', editing.id, data);
@@ -66,6 +90,10 @@ export default function PatternsScreen() {
           value={query}
           onChangeText={setQuery}
         />
+        <Button title="📋 Paste pattern" variant="secondary" onPress={pastePattern} style={{ marginTop: spacing.sm }} />
+        <Text style={[text.muted, { textAlign: 'center', marginTop: 6 }]}>
+          Copy text from a photo or screenshot (press and hold the text in Photos), then tap Paste.
+        </Text>
       </View>
 
       <FlatList
@@ -73,7 +101,7 @@ export default function PatternsScreen() {
         keyExtractor={(p) => p.id}
         contentContainerStyle={{ padding: spacing.md, paddingBottom: 100 }}
         ListEmptyComponent={
-          <EmptyState emoji="📖" title="Your pattern library is empty" hint="Tap + to save a pattern you love." />
+          <EmptyState emoji="📖" title="Your pattern library is empty" hint="Tap Paste pattern or + to save a pattern you love." />
         }
         renderItem={({ item }) => (
           <Card onPress={() => setEditing(item)}>
@@ -106,7 +134,7 @@ export default function PatternsScreen() {
         )}
       />
 
-      <Fab onPress={() => setEditing('new')} />
+      <Fab onPress={() => openNew()} />
 
       <FormModal
         visible={editing !== null}

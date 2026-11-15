@@ -8,7 +8,7 @@ A cozy companion app for knitters and crocheters, built with React Native + Expo
 | --- | --- |
 | 🔢 **Counter** | Pattern tracker: follows which step you're on and which repeat (e.g. step 5 of 8, repeat 3 of 28), with undo, jump-to-step and your choice of counting style. Plus a stitch counter and a quick row count. |
 | 🧶 **Projects** | Track makes as planned / in progress / finished, link a pattern and yarn, keep notes. |
-| 📖 **Patterns** | Save patterns with their repeating steps, number of repeats, craft, difficulty, link and notes. Searchable. |
+| 📖 **Patterns** | Paste a pattern copied from a photo (Live Text) and Yarnie splits it into steps and finds the repeat count. Save patterns with their repeating steps, number of repeats, craft, difficulty, link and notes. Searchable. |
 | 🧺 **Stash** | Inventory your yarn by brand, colorway, weight and fiber, with quick +/− skein counts. |
 
 All data is stored on the device with AsyncStorage. No account or server is needed.

@@ -1,4 +1,4 @@
-import { Project } from './types';
+import { Craft, Project } from './types';
 
 /**
  * Turn pasted pattern text into steps: one per line.
@@ -14,6 +14,48 @@ export function parseSteps(text: string): string[] {
         .trim(),
     )
     .filter(Boolean);
+}
+
+/** A line that says how many times to work the steps, e.g. "Repeat for 27 times (Total 28 times)". */
+const COUNT_LINE = /\b(?:times?|total|more)\b|\bx\s*\d+\s*$/i;
+
+/**
+ * Read pasted text (e.g. copied with Live Text from a photo) into steps and a total repeat count.
+ * - "Total N" wins; otherwise "repeat N times" / "x N" is taken as the total.
+ * - Plain "1 ", "2 ", "3 " numbering is removed when the lines are numbered in order.
+ */
+export function parsePatternText(text: string): { steps: string[]; repeats?: number } {
+  let repeats: number | undefined;
+  const stepLines: string[] = [];
+
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    if (COUNT_LINE.test(line) && /\d/.test(line) && !/[,*]/.test(line) && !guessCraft(line)) {
+      const total = line.match(/total\D*(\d+)/i);
+      const any = line.match(/(\d+)\s*(?:x|times?)\b|x\s*(\d+)/i);
+      const n = total ? Number(total[1]) : any ? Number(any[1] ?? any[2]) : undefined;
+      if (n && (total || repeats === undefined)) repeats = n;
+      continue;
+    }
+    stepLines.push(line);
+  }
+
+  // Strip plain sequential numbering ("1 K3…", "2 K5…") that Live Text gives for circled numbers.
+  const plain = /^\(?(\d+)\)?\s+/;
+  const numbered = stepLines.length > 1 && stepLines.every((l, i) => Number(l.match(plain)?.[1]) === i + 1);
+  const cleaned = numbered ? stepLines.map((l) => l.replace(plain, '')) : stepLines;
+
+  return { steps: parseSteps(cleaned.join('\n')), repeats };
+}
+
+/** Guess the craft from common abbreviations (K3, P2, k2tog… vs sc, dc, ch…). */
+export function guessCraft(text: string): Craft | undefined {
+  const knit = (text.match(/\b[KP]\d+\b|\bk2tog\b|\bssk\b|\bknit\b|\bpurl\b|\byo\b/gi) ?? []).length;
+  const crochet = (text.match(/\b(?:sc|dc|hdc|tr|ch|sl\s?st|inc|dec|mr)\b/gi) ?? []).length;
+  if (knit > crochet) return 'knit';
+  if (crochet > knit) return 'crochet';
+  return undefined;
 }
 
 const REF = /^(?:repeat|rep|same as|as)\s*(?:row|rnd|round|step)?\s*#?\(?\s*(\d+|[①-⑳])\s*\)?\.?$/i;
