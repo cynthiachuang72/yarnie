@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { newId, useStore } from '../store';
@@ -20,6 +20,16 @@ export default function CounterScreen() {
   const { state, add, update, setActiveProject } = useStore();
   const [quick, setQuick] = useState<Counts>({ rows: 0, stitches: 0 });
   const [history, setHistory] = useState<Snapshot[]>([]);
+  const [toast, setToast] = useState<{ text: string; id: number } | null>(null);
+
+  // Hide the Undo popup after a few seconds.
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  const notify = (msg: string) => setToast({ text: msg, id: Date.now() });
 
   const activeProjects = state.projects.filter((p) => p.status !== 'finished');
   const project = state.projects.find((p) => p.id === state.activeProjectId);
@@ -131,7 +141,14 @@ export default function CounterScreen() {
         )}
 
         {project && pattern && steps.length > 0 ? (
-          <PatternTracker project={project} patternName={pattern.name} steps={steps} target={pattern.repeats} apply={apply} />
+          <PatternTracker
+            project={project}
+            patternName={pattern.name}
+            steps={steps}
+            target={pattern.repeats}
+            apply={apply}
+            notify={notify}
+          />
         ) : (
           <>
             <CounterBlock
@@ -165,6 +182,21 @@ export default function CounterScreen() {
           </Text>
         )}
       </ScrollView>
+
+      {toast && (
+        <View style={styles.toast} key={toast.id}>
+          <Text style={styles.toastText}>{toast.text}</Text>
+          <Pressable
+            onPress={() => {
+              undo();
+              setToast(null);
+            }}
+            hitSlop={10}
+          >
+            <Text style={styles.toastUndo}>UNDO</Text>
+          </Pressable>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -175,13 +207,22 @@ function PatternTracker({
   steps,
   target,
   apply,
+  notify,
 }: {
   project: Project;
   patternName: string;
   steps: string[];
   target?: number;
   apply: (changes: Partial<Project>) => void;
+  notify: (msg: string) => void;
 }) {
+  const [holdHint, setHoldHint] = useState(false);
+  useEffect(() => {
+    if (!holdHint) return;
+    const timer = setTimeout(() => setHoldHint(false), 3000);
+    return () => clearTimeout(timer);
+  }, [holdHint]);
+
   const n = steps.length;
   const t = trackerOf(project, n);
   const done = isComplete(t.repeat, target);
@@ -196,20 +237,50 @@ function PatternTracker({
       ? `Repeat ${t.repeat}${target ? ` of ${target}` : ''}`
       : `${t.repeat - 1}${target ? ` of ${target}` : ''} repeats done`;
 
+  const fmt = (r: number) =>
+    isComplete(r, target) ? 'finished' : t.repeatDisplay === 'current' ? `repeat ${r}` : `${r - 1} repeats done`;
+
+  /**
+   * Move to a new position. Repeat changes, jumps and resets show an Undo popup
+   * and are written to the project's "Recent changes" list so nothing changes silently.
+   */
+  const move = (pos: { step: number; repeat: number }, kind: 'next' | 'back' | 'manual' | 'jump' | 'reset') => {
+    let msg: string | undefined;
+    if (kind === 'reset') msg = 'Started the pattern over';
+    else if (kind === 'jump') msg = `Jumped to step ${pos.step + 1}`;
+    else if (pos.repeat !== t.repeat) {
+      if (kind === 'next')
+        msg = isComplete(pos.repeat, target)
+          ? `All ${target} repeats done 🎉`
+          : `Finished repeat ${t.repeat}! Now on repeat ${pos.repeat}`;
+      else if (kind === 'back') msg = `Went back to ${fmt(pos.repeat)}`;
+      else msg = `Changed ${fmt(t.repeat)} → ${fmt(pos.repeat)}`;
+    }
+    if (!msg) return apply(pos);
+    notify(msg);
+    apply({ ...pos, log: [...(project.log ?? []).slice(-29), { at: Date.now(), text: msg }] });
+  };
+
   const setRepeat = (delta: number) => {
     // In "done" mode the number shown is repeat - 1, so the same +/- works for both views.
     const max = target ? target + 1 : Infinity;
     const repeat = Math.min(Math.max(t.repeat + delta, 1), max);
-    apply({ repeat, step: repeat > (target ?? Infinity) ? n - 1 : t.step });
+    if (repeat === t.repeat) return;
+    move({ repeat, step: repeat > (target ?? Infinity) ? n - 1 : t.step }, 'manual');
   };
 
-  const jumpTo = (i: number) => apply({ step: i, repeat: done ? target! : t.repeat });
+  const jumpTo = (i: number) => {
+    if (!done && i === t.step) return;
+    move({ step: i, repeat: done ? target! : t.repeat }, 'jump');
+  };
 
   const reset = () =>
     Alert.alert('Start over?', 'Go back to step 1 of repeat 1.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Start over', style: 'destructive', onPress: () => apply({ step: 0, repeat: 1 }) },
+      { text: 'Start over', style: 'destructive', onPress: () => move({ step: 0, repeat: 1 }, 'reset') },
     ]);
+
+  const recent = [...(project.log ?? [])].reverse().slice(0, 8);
 
   return (
     <View>
@@ -218,12 +289,15 @@ function PatternTracker({
         <Text style={text.muted}>{patternName.toUpperCase()}</Text>
         <Text style={styles.repeatLabel}>{repeatLabel}</Text>
         <View style={styles.repeatRow}>
-          <RoundButton label="−" small onPress={() => setRepeat(-1)} />
+          <RoundButton label="−" small onPress={() => setHoldHint(true)} onLongPress={() => setRepeat(-1)} />
           <Text style={[text.muted, { flex: 1, textAlign: 'center' }]}>
             {totalRows ? `Row ${Math.min(rowsDone + 1, totalRows)} of ${totalRows}` : `Row ${rowsDone + 1}`}
           </Text>
-          <RoundButton label="+" small onPress={() => setRepeat(1)} />
+          <RoundButton label="+" small onPress={() => setHoldHint(true)} onLongPress={() => setRepeat(1)} />
         </View>
+        {holdHint && (
+          <Text style={[styles.hint]}>Press and hold − or + to change the repeat. This avoids accidental taps.</Text>
+        )}
         {!!totalRows && (
           <View style={styles.progressTrack}>
             <View style={[styles.progressFill, { width: `${Math.min(100, (rowsDone / totalRows) * 100)}%` }]} />
@@ -233,7 +307,7 @@ function PatternTracker({
 
       {/* Current step */}
       <Pressable
-        onPress={() => apply(nextPosition(t, n, target))}
+        onPress={() => move(nextPosition(t, n, target), 'next')}
         style={({ pressed }) => [styles.block, styles.stepCard, pressed && { opacity: 0.9 }]}
         accessibilityLabel="Next step"
       >
@@ -255,8 +329,8 @@ function PatternTracker({
         )}
       </Pressable>
       <View style={styles.navRow}>
-        <Button title="◀ Back" variant="secondary" onPress={() => apply(prevPosition(t, n, target))} style={{ flex: 1 }} />
-        <Button title="Next step ▶" onPress={() => apply(nextPosition(t, n, target))} style={{ flex: 2 }} />
+        <Button title="◀ Back" variant="secondary" onPress={() => move(prevPosition(t, n, target), 'back')} style={{ flex: 1 }} />
+        <Button title="Next step ▶" onPress={() => move(nextPosition(t, n, target), 'next')} style={{ flex: 2 }} />
       </View>
 
       {/* All steps — tap one to jump there */}
@@ -276,6 +350,21 @@ function PatternTracker({
         })}
       </View>
 
+      {/* Recent changes — a record of repeat changes, jumps and resets */}
+      <View style={[styles.block, { alignItems: 'stretch' }]}>
+        <Text style={text.h2}>Recent changes</Text>
+        {recent.length === 0 ? (
+          <Text style={[text.muted, { marginTop: 4 }]}>Repeat changes, jumps and restarts will show here.</Text>
+        ) : (
+          recent.map((e, i) => (
+            <View key={e.at + '-' + i} style={styles.logRow}>
+              <Text style={styles.logTime}>{formatTime(e.at)}</Text>
+              <Text style={[text.body, { flex: 1 }]}>{e.text}</Text>
+            </View>
+          ))
+        )}
+      </View>
+
       {/* Ways of counting */}
       <View style={[styles.block, { alignItems: 'stretch' }]}>
         <Text style={[text.h2, { marginBottom: spacing.sm }]}>How you count</Text>
@@ -287,7 +376,7 @@ function PatternTracker({
         <Text style={styles.optionLabel}>After the last step</Text>
         <View style={styles.optionRow}>
           <Chip label="Count the repeat for me" selected={t.autoRepeat} onPress={() => apply({ autoRepeat: true })} />
-          <Chip label="I'll tap + myself" selected={!t.autoRepeat} onPress={() => apply({ autoRepeat: false })} />
+          <Chip label="I'll change it myself" selected={!t.autoRepeat} onPress={() => apply({ autoRepeat: false })} />
         </View>
         <Button title="Start pattern over" variant="ghost" onPress={reset} style={{ marginTop: spacing.sm }} />
       </View>
@@ -303,10 +392,30 @@ function Chip({ label, selected, onPress }: { label: string; selected: boolean; 
   );
 }
 
-function RoundButton({ label, onPress, small }: { label: string; onPress: () => void; small?: boolean }) {
+function formatTime(at: number) {
+  const d = new Date(at);
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return d.toDateString() === new Date().toDateString()
+    ? time
+    : `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+}
+
+function RoundButton({
+  label,
+  onPress,
+  onLongPress,
+  small,
+}: {
+  label: string;
+  onPress: () => void;
+  onLongPress?: () => void;
+  small?: boolean;
+}) {
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={500}
       hitSlop={8}
       style={[styles.round, { backgroundColor: colors.border }, small && { width: 44, height: 44 }]}
     >
@@ -408,5 +517,32 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     alignItems: 'center',
   },
+  hint: { fontSize: 13, color: colors.primaryDark, textAlign: 'center', marginTop: spacing.sm, fontWeight: '600' },
+  logRow: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  logTime: { width: 92, fontSize: 13, color: colors.muted, paddingTop: 2 },
+  toast: {
+    position: 'absolute',
+    left: spacing.md,
+    right: spacing.md,
+    bottom: spacing.md,
+    backgroundColor: colors.text,
+    borderRadius: radius.md,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
+  },
+  toastText: { flex: 1, color: '#fff', fontSize: 15, fontWeight: '600', marginRight: spacing.md },
+  toastUndo: { color: colors.accent, fontSize: 15, fontWeight: '800' },
   upNextLabel: { fontSize: 12, fontWeight: '800', color: colors.muted, marginBottom: 2 },
 });

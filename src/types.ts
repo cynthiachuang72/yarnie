@@ -17,6 +17,7 @@ export interface Project {
   repeat?: number; // 1-based current repeat; > pattern.repeats means finished
   autoRepeat?: boolean; // finishing the last step moves to the next repeat (default true)
   repeatDisplay?: 'current' | 'done'; // show "Repeat 3 of 28" or "2 of 28 done"
+  log?: { at: number; text: string }[]; // recent repeat changes, jumps and resets (newest last)
   createdAt: number;
 }
 
