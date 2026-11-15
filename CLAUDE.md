@@ -12,6 +12,7 @@ The owner works on it entirely from her phone, so:
 - `App.tsx` — bottom tabs (Counter, Projects, Patterns, Stash) and providers
 - `src/store.tsx` — app state (context + reducer), persisted with AsyncStorage
 - `src/types.ts` — Project, Pattern, Yarn models
+- `src/pattern.ts` — pattern-step parsing ("Repeat 1" references) and step/repeat tracker logic
 - `src/theme.ts` — colors (berry pink, sage, peach), spacing, radius
 - `src/components/` — shared UI (`ui.tsx`) and the reusable add/edit sheet (`FormModal.tsx`)
 - `src/screens/` — one file per tab

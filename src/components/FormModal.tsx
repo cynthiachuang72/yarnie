@@ -71,7 +71,7 @@ export function FormModal({ visible, title, fields, initialValues, onSubmit, onC
                   </View>
                 ) : (
                   <TextInput
-                    style={[styles.input, f.type === 'multiline' && { height: 90, textAlignVertical: 'top' }]}
+                    style={[styles.input, f.type === 'multiline' && { minHeight: 90, maxHeight: 200, textAlignVertical: 'top' }]}
                     value={values[f.key] === undefined ? '' : String(values[f.key])}
                     onChangeText={(t) => set(f.key, f.type === 'number' ? t.replace(/[^0-9.]/g, '') : t)}
                     placeholder={f.placeholder}

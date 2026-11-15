@@ -6,6 +6,7 @@ import { Difficulty, Pattern } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { Button, Card, EmptyState, Fab, Tag, text } from '../components/ui';
 import { Field, FormModal, FormValues } from '../components/FormModal';
+import { parseSteps } from '../pattern';
 
 const DIFFICULTIES: Difficulty[] = ['beginner', 'easy', 'intermediate', 'advanced'];
 
@@ -13,6 +14,13 @@ const fields: Field[] = [
   { key: 'name', label: 'Pattern name', type: 'text', placeholder: 'Classic ribbed beanie', required: true },
   { key: 'craft', label: 'Craft', type: 'choice', options: [{ label: '🧶 Knit', value: 'knit' }, { label: '🪝 Crochet', value: 'crochet' }] },
   { key: 'difficulty', label: 'Difficulty', type: 'choice', options: DIFFICULTIES.map((d) => ({ label: d, value: d })) },
+  {
+    key: 'stepsText',
+    label: 'Repeating steps (one row per line)',
+    type: 'multiline',
+    placeholder: 'K3, *P2, K4 … P2, K3\nK5, *P4, K2 … K3\nRepeat 1\nRepeat 2',
+  },
+  { key: 'repeats', label: 'Work the steps how many times in total?', type: 'number', placeholder: '28' },
   { key: 'link', label: 'Link', type: 'text', placeholder: 'https://…' },
   { key: 'notes', label: 'Notes', type: 'multiline', placeholder: 'Gauge, hook/needle size, modifications…' },
 ];
@@ -24,11 +32,13 @@ export default function PatternsScreen() {
 
   const q = query.trim().toLowerCase();
   const list = q
-    ? state.patterns.filter((p) => `${p.name} ${p.notes} ${p.craft}`.toLowerCase().includes(q))
+    ? state.patterns.filter((p) => `${p.name} ${p.notes} ${p.craft} ${(p.steps ?? []).join(' ')}`.toLowerCase().includes(q))
     : state.patterns;
 
   const initial: FormValues =
-    editing && editing !== 'new' ? editing : { craft: 'crochet', difficulty: 'easy', link: '', notes: '' };
+    editing && editing !== 'new'
+      ? { ...editing, stepsText: (editing.steps ?? []).join('\n'), repeats: editing.repeats ?? '' }
+      : { craft: 'crochet', difficulty: 'easy', link: '', notes: '', stepsText: '', repeats: '' };
 
   const save = (v: FormValues) => {
     const data = {
@@ -37,6 +47,8 @@ export default function PatternsScreen() {
       difficulty: v.difficulty,
       link: String(v.link ?? '').trim(),
       notes: v.notes ?? '',
+      steps: parseSteps(String(v.stepsText ?? '')),
+      repeats: Number(v.repeats) > 0 ? Math.round(Number(v.repeats)) : undefined,
     };
     if (editing === 'new') add('patterns', { ...data, id: newId(), createdAt: Date.now() });
     else if (editing) update('patterns', editing.id, data);
@@ -70,6 +82,12 @@ export default function PatternsScreen() {
             </Text>
             <View style={styles.tags}>
               <Tag label={item.difficulty} />
+              {!!item.steps?.length && (
+                <Tag
+                  label={`${item.steps.length} steps${item.repeats ? ` × ${item.repeats}` : ''}`}
+                  color={colors.border}
+                />
+              )}
             </View>
             {!!item.notes && (
               <Text style={text.body} numberOfLines={2}>
