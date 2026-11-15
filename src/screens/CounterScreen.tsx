@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useStore } from '../store';
-import { Project } from '../types';
+import { newId, useStore } from '../store';
+import { Pattern, Project } from '../types';
 import { colors, radius, spacing } from '../theme';
 import { Button, text } from '../components/ui';
 import { isComplete, nextPosition, prevPosition, resolveStep, trackerOf } from '../pattern';
@@ -17,7 +17,7 @@ type Snapshot = { projectId?: string; prev: Record<string, unknown> };
  * Every change can be undone.
  */
 export default function CounterScreen() {
-  const { state, update, setActiveProject } = useStore();
+  const { state, add, update, setActiveProject } = useStore();
   const [quick, setQuick] = useState<Counts>({ rows: 0, stitches: 0 });
   const [history, setHistory] = useState<Snapshot[]>([]);
 
@@ -26,6 +26,29 @@ export default function CounterScreen() {
   const pattern = project ? state.patterns.find((p) => p.id === project.patternId) : undefined;
   const steps = pattern?.steps ?? [];
   const counts: Counts = project ? { rows: project.rows, stitches: project.stitches } : quick;
+
+  // Patterns that have steps to follow, and those not yet used by an active project.
+  const followable = state.patterns.filter((p) => (p.steps?.length ?? 0) > 0);
+  const unstarted = followable.filter((pt) => !activeProjects.some((pr) => pr.patternId === pt.id));
+
+  /** Start following a pattern: makes a project for it (named after the pattern) and selects it. */
+  const startPattern = (pt: Pattern) => {
+    const id = newId();
+    add('projects', {
+      id,
+      name: pt.name,
+      craft: pt.craft,
+      status: 'in progress',
+      patternId: pt.id,
+      notes: '',
+      rows: 0,
+      stitches: 0,
+      step: 0,
+      repeat: 1,
+      createdAt: Date.now(),
+    });
+    setActiveProject(id);
+  };
 
   /** Apply a change to the selected project (or quick counter), remembering the old values for Undo. */
   const apply = (changes: Partial<Project>) => {
@@ -74,7 +97,38 @@ export default function CounterScreen() {
               onPress={() => setActiveProject(p.id)}
             />
           ))}
+          {unstarted.map((pt) => (
+            <Chip key={pt.id} label={`📖 ${pt.name}`} selected={false} onPress={() => startPattern(pt)} />
+          ))}
         </ScrollView>
+
+        {/* Nothing with steps selected yet: offer the saved patterns right here. */}
+        {!(project && steps.length > 0) && followable.length > 0 && (
+          <View style={[styles.block, { alignItems: 'stretch' }]}>
+            <Text style={text.h2}>Follow a pattern</Text>
+            <Text style={[text.muted, { marginTop: 4, marginBottom: spacing.sm }]}>
+              {project
+                ? `Pick the pattern for “${project.name}” to see each step as you count.`
+                : 'Pick a pattern to see each step as you count. Your place is saved.'}
+            </Text>
+            <View style={styles.optionRow}>
+              {followable.map((pt) => (
+                <Chip
+                  key={pt.id}
+                  label={`📖 ${pt.name}`}
+                  selected={false}
+                  onPress={() => {
+                    if (project) apply({ patternId: pt.id, step: 0, repeat: 1 });
+                    else {
+                      const existing = activeProjects.find((pr) => pr.patternId === pt.id);
+                      existing ? setActiveProject(existing.id) : startPattern(pt);
+                    }
+                  }}
+                />
+              ))}
+            </View>
+          </View>
+        )}
 
         {project && pattern && steps.length > 0 ? (
           <PatternTracker project={project} patternName={pattern.name} steps={steps} target={pattern.repeats} apply={apply} />
@@ -88,11 +142,11 @@ export default function CounterScreen() {
               onMinus={() => change('rows', -1)}
               onReset={() => apply({ rows: 0 })}
             />
-            {project && (
+            {followable.length === 0 && (
               <Text style={[text.muted, { textAlign: 'center', marginBottom: spacing.md }]}>
                 {pattern
-                  ? `Add the repeating steps to “${pattern.name}” in the Patterns tab to track steps and repeats.`
-                  : 'Link a pattern with steps to this project to track steps and repeats.'}
+                  ? `Add the repeating steps to “${pattern.name}” in the Patterns tab to follow it step by step here.`
+                  : 'Save a pattern with its steps in the Patterns tab to follow it step by step here.'}
               </Text>
             )}
           </>
@@ -188,6 +242,14 @@ function PatternTracker({
           <>
             <Text style={styles.stepText}>{current.text}</Text>
             {current.sameAs && <Text style={text.muted}>Same as step {current.sameAs}</Text>}
+            <View style={styles.upNext}>
+              <Text style={styles.upNextLabel}>
+                {t.step === n - 1 ? (target && t.repeat >= target ? 'LAST STEP!' : 'UP NEXT · STEP 1 (NEXT REPEAT)') : `UP NEXT · STEP ${t.step + 2}`}
+              </Text>
+              {!(t.step === n - 1 && target && t.repeat >= target) && (
+                <Text style={text.body}>{resolveStep(steps, t.step === n - 1 ? 0 : t.step + 1).text}</Text>
+              )}
+            </View>
             <Text style={[text.muted, { marginTop: spacing.sm }]}>Tap card for next step</Text>
           </>
         )}
@@ -338,4 +400,13 @@ const styles = StyleSheet.create({
   stepRowNum: { width: 28, fontWeight: '800', color: colors.primaryDark },
   optionLabel: { fontSize: 13, fontWeight: '700', color: colors.muted, marginTop: spacing.sm, marginBottom: 6, textTransform: 'uppercase' },
   optionRow: { flexDirection: 'row', flexWrap: 'wrap' },
+  upNext: {
+    alignSelf: 'stretch',
+    marginTop: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    alignItems: 'center',
+  },
+  upNextLabel: { fontSize: 12, fontWeight: '800', color: colors.muted, marginBottom: 2 },
 });
