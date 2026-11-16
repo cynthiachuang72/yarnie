@@ -1,0 +1,20 @@
+--- install ---
+
+added 486 packages, and audited 487 packages in 10s
+
+45 packages are looking for funding
+  run `npm fund` for details
+
+3 moderate severity vulnerabilities
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+--- expo install --fix ---
+Dependencies are up to date
+--- tsc ---
+--- expo-doctor ---
+Running 20 checks on your project...
+20/20 checks passed. No issues detected!
+Published. exp://u.expo.dev/c54907f1-1ef7-48f9-8ddf-e9e2f2aaa71f/group/8d286ef5-c78b-4822-b619-8e2e17ea2f4c
