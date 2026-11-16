@@ -1,18 +1,31 @@
 import React, { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { newId, useStore } from '../store';
-import { Yarn, YarnWeight } from '../types';
+import { Yarn } from '../types';
 import { colors, radius, spacing } from '../theme';
-import { Card, EmptyState, Fab, Tag, text } from '../components/ui';
+import { Button, Card, EmptyState, Fab, Tag, text } from '../components/ui';
 import { Field, FormModal, FormValues } from '../components/FormModal';
 
-const WEIGHTS: YarnWeight[] = ['lace', 'fingering', 'sport', 'DK', 'worsted', 'bulky', 'super bulky'];
+import { YARN_WEIGHTS, weightDescription, weightInfo, weightLabel } from '../yarnWeights';
+
+const showWeightGuide = () =>
+  Alert.alert(
+    'Yarn weights',
+    'The number is usually printed on the yarn label inside a little yarn-ball symbol.\n\n' +
+      YARN_WEIGHTS.map((w) => `${w.id} · ${w.name}: ${w.alsoCalled}`).join('\n'),
+  );
 
 const fields: Field[] = [
   { key: 'name', label: 'Brand / yarn line', type: 'text', placeholder: 'Merino Soft', required: true },
   { key: 'color', label: 'Colorway', type: 'text', placeholder: 'Dusty rose', required: true },
-  { key: 'weight', label: 'Weight', type: 'choice', options: WEIGHTS.map((w) => ({ label: w, value: w })) },
+  {
+    key: 'weight',
+    label: 'Weight (number on the yarn label)',
+    type: 'choice',
+    options: YARN_WEIGHTS.map((w) => ({ label: `${w.id} · ${w.name}`, value: w.id })),
+    describe: weightDescription,
+  },
   { key: 'fiber', label: 'Fiber', type: 'text', placeholder: '100% merino wool' },
   { key: 'skeins', label: 'Skeins on hand', type: 'number', placeholder: '3' },
 ];
@@ -24,7 +37,9 @@ export default function StashScreen() {
   const totalSkeins = state.yarns.reduce((sum, y) => sum + (y.skeins || 0), 0);
 
   const initial: FormValues =
-    editing && editing !== 'new' ? editing : { weight: 'worsted', fiber: '', skeins: 1 };
+    editing && editing !== 'new'
+      ? { ...editing, weight: weightInfo(editing.weight)?.id ?? editing.weight } // upgrades old named weights
+      : { weight: '4', fiber: '', skeins: 1 };
 
   const save = (v: FormValues) => {
     const data = {
@@ -48,6 +63,12 @@ export default function StashScreen() {
         <Text style={[text.muted, { marginTop: 4 }]}>
           {state.yarns.length} yarns · {totalSkeins} skeins
         </Text>
+        <Button
+          title="What do the yarn weights mean?"
+          variant="ghost"
+          onPress={showWeightGuide}
+          style={{ alignSelf: 'flex-start', paddingHorizontal: 0, paddingVertical: 6 }}
+        />
       </View>
 
       <FlatList
@@ -61,7 +82,7 @@ export default function StashScreen() {
               <Text style={text.h2}>{item.name}</Text>
               <Text style={text.body}>{item.color}</Text>
               <View style={styles.tags}>
-                <Tag label={item.weight} color={colors.secondary} />
+                <Tag label={weightLabel(item.weight)} color={colors.secondary} />
                 {!!item.fiber && <Tag label={item.fiber} color={colors.border} />}
               </View>
             </View>

@@ -35,14 +35,8 @@ export interface Pattern {
   createdAt: number;
 }
 
-export type YarnWeight =
-  | 'lace'
-  | 'fingering'
-  | 'sport'
-  | 'DK'
-  | 'worsted'
-  | 'bulky'
-  | 'super bulky';
+/** Standard yarn weight number (Craft Yarn Council 0–7), e.g. '3' = Light / DK. See src/yarnWeights.ts. */
+export type YarnWeight = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7';
 
 export interface Yarn {
   id: string;

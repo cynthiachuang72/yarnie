@@ -16,7 +16,14 @@ import { Button } from './ui';
 export type Field =
   | { key: string; label: string; type: 'text' | 'multiline'; placeholder?: string; required?: boolean }
   | { key: string; label: string; type: 'number'; placeholder?: string }
-  | { key: string; label: string; type: 'choice'; options: { label: string; value: string | undefined }[] };
+  | {
+      key: string;
+      label: string;
+      type: 'choice';
+      options: { label: string; value: string | undefined }[];
+      /** Optional extra info shown under the chips for the selected option. */
+      describe?: (value: any) => string;
+    };
 
 export type FormValues = Record<string, any>;
 
@@ -68,6 +75,7 @@ export function FormModal({ visible, title, fields, initialValues, onSubmit, onC
                         </Pressable>
                       );
                     })}
+                    {!!f.describe?.(values[f.key]) && <Text style={styles.describe}>{f.describe(values[f.key])}</Text>}
                   </View>
                 ) : (
                   <TextInput
@@ -131,6 +139,16 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   chipSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  describe: {
+    width: '100%',
+    marginTop: 4,
+    padding: 10,
+    borderRadius: radius.sm,
+    backgroundColor: colors.card,
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.text,
+  },
   chipText: { fontSize: 14, fontWeight: '600', color: colors.text },
   actions: { flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm },
 });
